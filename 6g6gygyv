@@ -1,0 +1,247 @@
+--[[
+    ORION LIB - GLITCHNOODLE FINAL EDITION
+    - Theme: Deep Purple Transparent & Neon Violet
+    - Phím ẩn/hiện: RightShift
+    - Fix: Không lòi nút dư, không hiện 2 menu.
+]]
+
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
+
+-- [1. HỆ THỐNG TỰ ĐỘNG DỌN DẸP]
+local GUI_NAME = "GlitchNoodle_Transparent_UI"
+if CoreGui:FindFirstChild(GUI_NAME) then
+    CoreGui[GUI_NAME]:Destroy()
+end
+
+-- [2. KHỞI TẠO GUI]
+local Orion = Instance.new("ScreenGui")
+Orion.Name = GUI_NAME
+Orion.Parent = CoreGui
+Orion.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- [3. BẢNG MÀU & CẤU HÌNH]
+local Theme = {
+    Main = Color3.fromRGB(15, 10, 25),      -- Màu tím đen
+    Second = Color3.fromRGB(30, 20, 50),    -- Màu tab/button tối
+    Stroke = Color3.fromRGB(180, 50, 255),  -- Tím Neon rực rỡ
+    Text = Color3.fromRGB(255, 255, 255),    -- Trắng sáng
+    TextDark = Color3.fromRGB(180, 150, 255),-- Tím nhạt
+    Transparency = 0.2 -- Độ trong suốt (0.2 = nhìn xuyên thấu 20%)
+}
+
+local function Create(Name, Props, Children)
+    local Obj = Instance.new(Name)
+    for i, v in pairs(Props or {}) do Obj[i] = v end
+    for _, child in pairs(Children or {}) do child.Parent = Obj end
+    return Obj
+end
+
+local OrionLib = {}
+
+function OrionLib:MakeWindow(Config)
+    local Window = {Tabs = {}}
+
+    -- KHUNG CHÍNH (TRONG SUỐT)
+    local MainFrame = Create("Frame", {
+        Parent = Orion,
+        Position = UDim2.new(0.5, -250, 0.5, -175),
+        Size = UDim2.new(0, 500, 0, 350),
+        BackgroundColor3 = Theme.Main,
+        BackgroundTransparency = Theme.Transparency,
+        BorderSizePixel = 0,
+        Visible = true
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 12)}),
+        Create("UIStroke", {Color = Theme.Stroke, Thickness = 2, Transparency = 0.2})
+    })
+
+    -- THANH TIÊU ĐỀ
+    local TopBar = Create("Frame", {
+        Parent = MainFrame,
+        Size = UDim2.new(1, 0, 0, 45),
+        BackgroundTransparency = 1
+    })
+
+    local Title = Create("TextLabel", {
+        Parent = TopBar,
+        Text = "   " .. (Config.Name or "GLITCHNOODLE HUB"),
+        Size = UDim2.new(1, -50, 1, 0),
+        Font = Enum.Font.GothamBlack,
+        TextColor3 = Theme.Text,
+        TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        BackgroundTransparency = 1
+    })
+
+    -- NÚT TẮT (-) THÔNG MINH
+    local MinBtn = Create("TextButton", {
+        Parent = TopBar,
+        Text = "-",
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(1, -38, 0.5, -14),
+        BackgroundColor3 = Theme.Second,
+        BackgroundTransparency = 0.5,
+        TextColor3 = Theme.Text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        AutoButtonColor = true
+    }, { Create("UICorner", {CornerRadius = UDim.new(0, 6)}) })
+
+    -- Logic ẩn menu khi bấm (-)
+    MinBtn.MouseButton1Click:Connect(function()
+        MainFrame.Visible = false
+    end)
+
+    -- Phím tắt hiện lại Menu (RightShift)
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+            MainFrame.Visible = not MainFrame.Visible
+        end
+    end)
+
+    -- Kéo thả Menu
+    local Dragging, MousePos, FramePos
+    TopBar.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            Dragging = true MousePos = i.Position FramePos = MainFrame.Position
+            i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then Dragging = false end end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseMovement and Dragging then
+            local Delta = i.Position - MousePos
+            MainFrame.Position = UDim2.new(FramePos.X.Scale, FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)
+        end
+    end)
+
+    -- KHU VỰC CHỨA TAB & NỘI DUNG
+    local TabContainer = Create("ScrollingFrame", {
+        Parent = MainFrame,
+        Position = UDim2.new(0, 12, 0, 55),
+        Size = UDim2.new(0, 120, 1, -70),
+        BackgroundTransparency = 1,
+        ScrollBarThickness = 0
+    }, { Create("UIListLayout", {Padding = UDim.new(0, 6)}) })
+
+    local ContentHolder = Create("Frame", {
+        Parent = MainFrame,
+        Position = UDim2.new(0, 145, 0, 55),
+        Size = UDim2.new(1, -157, 1, -70),
+        BackgroundTransparency = 1
+    })
+
+    -- [HÀM TẠO TAB]
+    function Window:MakeTab(Name)
+        local Tab = {}
+        local Page = Create("ScrollingFrame", {
+            Parent = ContentHolder,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Visible = false,
+            ScrollBarThickness = 2,
+            ScrollBarImageColor3 = Theme.Stroke,
+            AutomaticCanvasSize = Enum.AutomaticSize.Y
+        }, { Create("UIListLayout", {Padding = UDim.new(0, 8)}) })
+
+        local TBtn = Create("TextButton", {
+            Parent = TabContainer,
+            Size = UDim2.new(1, 0, 0, 34),
+            BackgroundColor3 = Theme.Second,
+            BackgroundTransparency = 0.4,
+            Text = Name,
+            Font = Enum.Font.GothamBold,
+            TextColor3 = Theme.TextDark,
+            TextSize = 12
+        }, { Create("UICorner", {CornerRadius = UDim.new(0, 6)}) })
+
+        TBtn.MouseButton1Click:Connect(function()
+            for _, v in pairs(ContentHolder:GetChildren()) do v.Visible = false end
+            for _, v in pairs(TabContainer:GetChildren()) do 
+                if v:IsA("TextButton") then 
+                    v.TextColor3 = Theme.TextDark 
+                    v.BackgroundTransparency = 0.4
+                end 
+            end
+            Page.Visible = true
+            TBtn.TextColor3 = Theme.Stroke
+            TBtn.BackgroundTransparency = 0.1
+        end)
+
+        -- Tab mặc định
+        if #TabContainer:GetChildren() == 2 then 
+            Page.Visible = true 
+            TBtn.TextColor3 = Theme.Stroke
+            TBtn.BackgroundTransparency = 0.1
+        end
+
+        -- [HÀM ADD BUTTON]
+        function Tab:AddButton(BtnName, Callback)
+            local B = Create("TextButton", {
+                Parent = Page,
+                Size = UDim2.new(1, -8, 0, 38),
+                BackgroundColor3 = Theme.Second,
+                BackgroundTransparency = 0.5,
+                Text = "  " .. BtnName,
+                Font = Enum.Font.GothamBold,
+                TextColor3 = Theme.Text,
+                TextSize = 13,
+                TextXAlignment = Enum.TextXAlignment.Left
+            }, {
+                Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                Create("UIStroke", {Color = Theme.Stroke, Thickness = 0.4, Transparency = 0.5})
+            })
+            B.MouseButton1Click:Connect(Callback)
+        end
+
+        -- [HÀM ADD TOGGLE]
+        function Tab:AddToggle(TglName, Default, Callback)
+            local Toggled = Default or false
+            local Tgl = Create("TextButton", {
+                Parent = Page,
+                Size = UDim2.new(1, -8, 0, 38),
+                BackgroundColor3 = Theme.Second,
+                BackgroundTransparency = 0.5,
+                Text = "  " .. TglName,
+                Font = Enum.Font.GothamBold,
+                TextColor3 = Theme.TextDark,
+                TextSize = 13,
+                TextXAlignment = Enum.TextXAlignment.Left
+            }, { Create("UICorner", {CornerRadius = UDim.new(0, 6)}) })
+
+            local Ind = Create("Frame", {
+                Parent = Tgl,
+                Position = UDim2.new(1, -35, 0.5, -10),
+                Size = UDim2.new(0, 20, 0, 20),
+                BackgroundColor3 = Toggled and Theme.Stroke or Color3.fromRGB(60, 60, 60)
+            }, { Create("UICorner", {CornerRadius = UDim.new(1, 0)}) })
+
+            Tgl.MouseButton1Click:Connect(function()
+                Toggled = not Toggled
+                Ind.BackgroundColor3 = Toggled and Theme.Stroke or Color3.fromRGB(60, 60, 60)
+                pcall(Callback, Toggled)
+            end)
+        end
+
+        return Tab
+    end
+
+    return Window
+end
+
+-- ==========================================
+-- SỬ DỤNG THỰC TẾ
+-- ==========================================
+
+local Win = OrionLib:MakeWindow({Name = "SKY BOY HUB | GLITCHNOODLE"})
+
+local T1 = Win:MakeTab("Hack Chính")
+T1:AddButton("Bật Bay", function() print("Fly Enabled") end)
+T1:AddToggle("Auto Farm", false, function(v) print("Farm: ", v) end)
+
+local T2 = Win:MakeTab("Cài đặt")
+T2:AddButton("Xóa Menu", function() Orion:Destroy() end)
+
+print("GlitchNoodle Ultimate Loaded! Press RightShift to Hide/Show.")
+return OrionLib
