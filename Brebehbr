@@ -1,0 +1,274 @@
+--[[
+    ORION LIBRARY - GLITCHNOODLE EDITION
+    Màu sắc: Tím Neon / Đen Sâu / Trắng Sáng
+    Shortcuts: RightShift để đóng/mở giao diện
+]]
+
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local HttpService = game:GetService("HttpService")
+
+local OrionLib = {
+	Elements = {},
+	ThemeObjects = {},
+	Connections = {},
+	Flags = {},
+	Themes = {
+		Default = {
+			Main = Color3.fromRGB(15, 10, 25),      -- Nền chính (Tím đen)
+			Second = Color3.fromRGB(25, 20, 40),    -- Nền phụ (Tím tối)
+			Stroke = Color3.fromRGB(180, 50, 255),  -- Viền (Tím Neon)
+			Divider = Color3.fromRGB(60, 30, 90),   -- Vạch ngăn
+			Text = Color3.fromRGB(255, 255, 255),    -- Chữ chính (Trắng)
+			TextDark = Color3.fromRGB(180, 150, 255)-- Chữ phụ (Tím nhạt)
+		}
+	},
+	SelectedTheme = "Default",
+	Folder = nil,
+	SaveCfg = false
+}
+
+-- [I. HỆ THỐNG CỐT LÕI]
+local Orion = Instance.new("ScreenGui")
+Orion.Name = "GlitchNoodle_Orion"
+Orion.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+
+-- Chống trùng lặp Menu
+for _, v in ipairs(Orion.Parent:GetChildren()) do
+    if v.Name == Orion.Name and v ~= Orion then v:Destroy() end
+end
+
+local function AddConnection(Signal, Function)
+	local SignalConnect = Signal:Connect(Function)
+	table.insert(OrionLib.Connections, SignalConnect)
+	return SignalConnect
+end
+
+local function MakeDraggable(DragPoint, Main)
+	local Dragging, DragInput, MousePos, FramePos
+	AddConnection(DragPoint.InputBegan, function(Input)
+		if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+			Dragging = true
+			MousePos = Input.Position
+			FramePos = Main.Position
+			Input.Changed:Connect(function()
+				if Input.UserInputState == Enum.UserInputState.End then Dragging = false end
+			end)
+		end
+	end)
+	AddConnection(UserInputService.InputChanged, function(Input)
+		if Input.UserInputType == Enum.UserInputType.MouseMovement then DragInput = Input end
+	end)
+	AddConnection(UserInputService.InputChanged, function(Input)
+		if Input == DragInput and Dragging then
+			local Delta = Input.Position - MousePos
+			Main.Position = UDim2.new(FramePos.X.Scale, FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)
+		end
+	end)
+end
+
+-- [II. CÔNG CỤ TẠO ELEMENT]
+local function Create(Name, Properties, Children)
+	local Object = Instance.new(Name)
+	for i, v in next, Properties or {} do Object[i] = v end
+	for i, v in next, Children or {} do v.Parent = Object end
+	return Object
+end
+
+local function AddThemeObject(Object, Type)
+	if not OrionLib.ThemeObjects[Type] then OrionLib.ThemeObjects[Type] = {} end    
+	table.insert(OrionLib.ThemeObjects[Type], Object)
+	local Prop = "BackgroundColor3"
+	if Object:IsA("UIStroke") then Prop = "Color"
+	elseif Object:IsA("TextLabel") or Object:IsA("TextBox") then Prop = "TextColor3"
+	elseif Object:IsA("ScrollingFrame") then Prop = "ScrollBarImageColor3"
+	elseif Object:IsA("ImageLabel") or Object:IsA("ImageButton") then Prop = "ImageColor3" end
+	Object[Prop] = OrionLib.Themes[OrionLib.SelectedTheme][Type]
+	return Object
+end
+
+-- [III. CHỨC NĂNG CHÍNH]
+function OrionLib:MakeWindow(Config)
+	local Window = {Tabs = {}}
+	local WindowName = Config.Name or "GlitchNoodle UI"
+
+	local MainFrame = AddThemeObject(Create("Frame", {
+		Name = "Main",
+		Parent = Orion,
+		Position = UDim2.new(0.5, -250, 0.5, -175),
+		Size = UDim2.new(0, 500, 0, 350),
+		BorderSizePixel = 0,
+	}, {
+		Create("UICorner", {CornerRadius = UDim.new(0, 10)}),
+		AddThemeObject(Create("UIStroke", {Thickness = 2}), "Stroke")
+	}), "Main")
+
+	local TopBar = Create("Frame", {
+		Name = "TopBar",
+		Parent = MainFrame,
+		Size = UDim2.new(1, 0, 0, 45),
+		BackgroundTransparency = 1,
+	})
+
+	local Title = AddThemeObject(Create("TextLabel", {
+		Parent = TopBar,
+		Text = "  " .. WindowName:upper(),
+		Size = UDim2.new(1, -50, 1, 0),
+		Font = Enum.Font.GothamBlack,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BackgroundTransparency = 1
+	}), "Text")
+
+    -- Nút Thu Nhỏ (-)
+    local MinBtn = AddThemeObject(Create("TextButton", {
+        Parent = TopBar,
+        Text = "-",
+        Size = UDim2.new(0, 30, 0, 30),
+        Position = UDim2.new(1, -40, 0.5, -15),
+        Font = Enum.Font.GothamBold,
+        TextSize = 20,
+        BackgroundTransparency = 0
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 6)})
+    }), "Second")
+
+	local TabHolder = Create("ScrollingFrame", {
+		Name = "TabHolder",
+		Parent = MainFrame,
+		Position = UDim2.new(0, 10, 0, 55),
+		Size = UDim2.new(0, 120, 1, -65),
+		BackgroundTransparency = 1,
+		ScrollBarThickness = 0
+	}, {
+		Create("UIListLayout", {Padding = UDim.new(0, 5)})
+	})
+
+	local ContentHolder = Create("Frame", {
+		Name = "ContentHolder",
+		Parent = MainFrame,
+		Position = UDim2.new(0, 140, 0, 55),
+		Size = UDim2.new(1, -150, 1, -65),
+		BackgroundTransparency = 1
+	})
+
+	MakeDraggable(TopBar, MainFrame)
+
+    -- Phím tắt ẩn/hiện
+	UserInputService.InputBegan:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.RightShift then
+			MainFrame.Visible = not MainFrame.Visible
+		end
+	end)
+
+	function Window:MakeTab(TabConfig)
+		local Tab = {}
+		local TabBtn = AddThemeObject(Create("TextButton", {
+			Parent = TabHolder,
+			Size = UDim2.new(1, 0, 0, 32),
+			Text = TabConfig.Name,
+			Font = Enum.Font.GothamBold,
+			TextSize = 12,
+		}, {
+			Create("UICorner", {CornerRadius = UDim.new(0, 6)})
+		}), "Second")
+
+		local Page = Create("ScrollingFrame", {
+			Parent = ContentHolder,
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Visible = false,
+			ScrollBarThickness = 2,
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y
+		}, {
+			Create("UIListLayout", {Padding = UDim.new(0, 8)})
+		})
+        AddThemeObject(Page, "Stroke")
+
+		TabBtn.MouseButton1Click:Connect(function()
+			for _, v in pairs(ContentHolder:GetChildren()) do v.Visible = false end
+			Page.Visible = true
+		end)
+
+        -- Mặc định Tab đầu tiên hiện lên
+        if #TabHolder:GetChildren() == 2 then Page.Visible = true end
+
+		function Tab:AddButton(BtnConfig)
+			local Button = AddThemeObject(Create("TextButton", {
+				Parent = Page,
+				Size = UDim2.new(1, -10, 0, 35),
+				Text = "  " .. BtnConfig.Name,
+				Font = Enum.Font.GothamBold,
+				TextSize = 13,
+				TextXAlignment = Enum.TextXAlignment.Left
+			}, {
+				Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                AddThemeObject(Create("UIStroke", {Thickness = 1}), "Divider")
+			}), "Second")
+            AddThemeObject(Button, "Text")
+
+			Button.MouseButton1Click:Connect(BtnConfig.Callback)
+		end
+
+		function Tab:AddToggle(TglConfig)
+			local Toggled = false
+			local Toggle = AddThemeObject(Create("TextButton", {
+				Parent = Page,
+				Size = UDim2.new(1, -10, 0, 35),
+				Text = "  " .. TglConfig.Name,
+				Font = Enum.Font.GothamBold,
+				TextSize = 13,
+				TextXAlignment = Enum.TextXAlignment.Left
+			}, {
+				Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                AddThemeObject(Create("UIStroke", {Thickness = 1}), "Divider")
+			}), "Second")
+            AddThemeObject(Toggle, "TextDark")
+
+			local Indicator = AddThemeObject(Create("Frame", {
+				Parent = Toggle,
+				Position = UDim2.new(1, -30, 0.5, -10),
+				Size = UDim2.new(0, 20, 0, 20),
+			}, {
+				Create("UICorner", {CornerRadius = UDim.new(1, 0)})
+			}), "Divider")
+
+			Toggle.MouseButton1Click:Connect(function()
+				Toggled = not Toggled
+				TweenService:Create(Indicator, TweenInfo.new(0.2), {BackgroundColor3 = Toggled and OrionLib.Themes.Default.Stroke or OrionLib.Themes.Default.Divider}):Play()
+				TglConfig.Callback(Toggled)
+			end)
+		end
+
+		return Tab
+	end
+
+	return Window
+end
+
+-- ==========================================
+-- VÍ DỤ CÁCH SỬ DỤNG SCRIPT
+-- ==========================================
+
+local Win = OrionLib:MakeWindow({Name = "SKY BOY HUB - GLITCHNOODLE"})
+
+local Tab1 = Win:MakeTab({Name = "Chính"})
+Tab1:AddButton({
+    Name = "Bay (Fly)",
+    Callback = function()
+        print("Đang bật Hack Bay...")
+    end
+})
+
+Tab1:AddToggle({
+    Name = "Tự động đánh",
+    Callback = function(v)
+        print("Auto Farm: ", v)
+    end
+})
+
+return OrionLib
